@@ -1,0 +1,16 @@
+{
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "lighthouse": "^11.2.0",
+    "nodemon": "^3.0.1",
+    "puppeteer": "^21.4.1",
+    "ts-node": "^10.9.1"
+  },
+  "scripts": {
+    "start": "node --loader ts-node/esm --no-warnings ./src/index.ts",
+    "test": "ts-node ./src/index"
+  }
+}
