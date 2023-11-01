@@ -1,5 +1,5 @@
 import * as xml2js from 'xml2js';
-import _ from 'lodash'; // Import Lodash
+import _ from 'lodash';
 import puppeteer from 'puppeteer';
 import launch from 'lighthouse';
 import fs from 'fs';
@@ -60,20 +60,22 @@ const sitemapPath = './src/sitemap.xml';
 
 
     console.log('Preenchendo variável de arquivo')
-    metricStrings += randomPages;
-    performanceMetrics.forEach(metric => {
-      const metricName = metric.id;
-      const metricValue = report.lhr.audits[metricName].numericValue;
-      metricStrings += `Métrica: ${metricName}, Valor: ${metricValue}\n`;
-    });
+    metricStrings += `Página analisada: ${randomPages}\n`;
 
     metricStrings += `\nPerformance: ${report.lhr.categories.performance.score * 100}\n`;
     metricStrings += `Acessibilidade: ${report.lhr.categories.accessibility.score * 100}\n`;
     metricStrings += `Boas práticas: ${report.lhr.categories['best-practices'].score * 100}\n`;
     metricStrings += `SEO: ${report.lhr.categories.seo.score * 100}\n`;
 
+    metricStrings += `\nFCP: ${report.lhr.audits['first-contentful-paint'].numericValue}\n`;
+    metricStrings += `LCP: ${report.lhr.audits['largest-contentful-paint'].numericValue}\n`;
+    metricStrings += `TBT: ${report.lhr.audits['total-blocking-time'].numericValue}\n`;
+    metricStrings += `CLS: ${report.lhr.audits['cumulative-layout-shift'].numericValue}\n`;
+    metricStrings += `Speed Index: ${report.lhr.audits['speed-index'].numericValue}\n`;
+
 
     fs.writeFileSync('performDetails.txt', metricStrings, 'utf-8');
+    console.log('Processo Finalizado')
     await browser.close();
   } catch(error) {
     throw new Error(error);
