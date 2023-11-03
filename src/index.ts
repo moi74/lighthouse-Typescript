@@ -7,20 +7,20 @@ import fs from 'fs';
 
 // Variáveis de definição----------------------------------------
 const sitemapPath = './src/sitemap.xml';
-const pages = 1;
+let pages = 1;
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
   auth: {
-    user: 'contato.moisessantanna@gmail.com',
-    pass: 'mhyn jnll manw ufls'
+    user: 'email',
+    pass: 'senha especial'
   }
 });
 
 const mailOptions = {
-  from: 'contato.moisessantanna@gmail.com',
-  to: 'moisespsantanna@gmail.com',
+  from: 'email envio',
+  to: 'email recebimento',
   subject: '',
   text: '',
   html: '',
@@ -64,9 +64,21 @@ async function sendMail() {
 }
 
 async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<string> {
+  await page.setViewport({ width: 1024, height: 768 });
+
   const screenshotPath = `./screenshot_${Date.now()}.png`;
   await page.goto(url);
   await page.screenshot({ path: screenshotPath });
+  return screenshotPath;
+}
+
+async function captureMobileScreenshot(page: Puppeteer.Page, url: string): Promise<string> {
+  await page.setViewport({ width: 375, height: 667 }); // Exemplo de resolução para iPhone 6/7/8
+
+  const screenshotPath = `./screenshot_mobile_${Date.now()}.png`;
+  await page.goto(url);
+  await page.screenshot({ path: screenshotPath });
+
   return screenshotPath;
 }
 
@@ -79,6 +91,17 @@ async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<str
   const lighthouseConfig: any = {
     output: 'json',
     port: (new URL(browser.wsEndpoint())).port,
+    settings: {
+      emulatedFormFactor: 'desktop'
+    }
+  };
+
+  const lighthouseConfigMobile: any = {
+    output: 'json',
+    port: (new URL(browser.wsEndpoint())).port,
+    settings: {
+      emulatedFormFactor: 'mobile'
+    }
   };
 
   try {
@@ -103,7 +126,7 @@ async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<str
         screenshotPaths.push(screenshotPath);
 
         lighthouseInfos.push(`
-          <p>Página analisada: https://www.teky.com.br/646a5b3ed496504d21e054ed/eixo-prolongador-1m-para-chave-903500,https://www.teky.com.br/646a5962d496504d21dd98ff/contator-principal-400a-s12-220-240v-3rt10-75-siemens</p>
+          <p>Página analisada: ${url}</p>
 
           <p>Performance: ${Math.round(report.lhr.categories.performance.score * 100)}%</p>
           <p>Acessibilidade: ${Math.round(report.lhr.categories.accessibility.score * 100)}%</p>
@@ -126,12 +149,44 @@ async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<str
         tbt += report.lhr.audits['total-blocking-time'].numericValue;
         cls += report.lhr.audits['cumulative-layout-shift'].numericValue;
         speedIndex += report.lhr.audits['speed-index'].numericValue;
+
+
+        let reportMobile = await launch(url, lighthouseConfigMobile);
+
+        const screenshotPathMobile = await captureMobileScreenshot(page, url);
+        screenshotPaths.push(screenshotPathMobile);
+
+        lighthouseInfos.push(`
+          <p>Página analisada: ${url}</p>
+
+          <p>Performance: ${Math.round(reportMobile.lhr.categories.performance.score * 100)}%</p>
+          <p>Acessibilidade: ${Math.round(reportMobile.lhr.categories.accessibility.score * 100)}%</p>
+          <p>Boas práticas: ${Math.round(reportMobile.lhr.categories['best-practices'].score * 100)}%</p>
+          <p>SEO: ${Math.round(reportMobile.lhr.categories.seo.score * 100)}%</p>
+
+          <p>FCP: ${Math.round(reportMobile.lhr.audits['first-contentful-paint'].numericValue)}ms</p>
+          <p>LCP: ${Math.round(reportMobile.lhr.audits['largest-contentful-paint'].numericValue)}ms</p>
+          <p>TBT: ${Math.round(reportMobile.lhr.audits['total-blocking-time'].numericValue)}ms</p>
+          <p>CLS: ${Math.round(reportMobile.lhr.audits['cumulative-layout-shift'].numericValue)}</p>
+          <p>Speed Index: ${Math.round(reportMobile.lhr.audits['speed-index'].numericValue)}</p>
+        `);
+
+        performance += reportMobile.lhr.categories.performance.score*100;
+        accessibility += reportMobile.lhr.categories.accessibility.score * 100;
+        bestPractices+= reportMobile.lhr.categories['best-practices'].score * 100;
+        seo += reportMobile.lhr.categories.seo.score * 100;
+        fcp += reportMobile.lhr.audits['first-contentful-paint'].numericValue;
+        lcp += reportMobile.lhr.audits['largest-contentful-paint'].numericValue;
+        tbt += reportMobile.lhr.audits['total-blocking-time'].numericValue;
+        cls += reportMobile.lhr.audits['cumulative-layout-shift'].numericValue;
+        speedIndex += reportMobile.lhr.audits['speed-index'].numericValue;
   
       } catch(errorLighthouse) {
         throw new Error(errorLighthouse);
       }
     }
 
+    pages = pages*2;
 
     mailOptions.html += `
       <h2>Média geral de métricas</h2>
@@ -150,15 +205,15 @@ async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<str
       <h2>Páginas analisadas</h2>
       <table style='width:100%'>
         <tr>
-          <th>Screenshot</th>
-          <th>Dados Lighthouse</th>
+          <th style='width:60%'>Screenshot</th>
+          <th style='width:40%'>Dados Lighthouse</th>
         </tr>
     `;
     screenshotPaths.forEach((screenshotPath, index) => {
       mailOptions.html += `
           <tr>
-            <td><img style='width:100%; height:auto;' src="cid:screenshot_${index}"></td>
-            <td>${lighthouseInfos[index]}</td>
+            <td style='width:60%'><img style='height:auto; max-height:100%;' src="cid:screenshot_${index}"></td>
+            <td style='width:40%'>${lighthouseInfos[index]}</td>
           </tr>
       `
     });
@@ -178,6 +233,7 @@ async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<str
   } catch(error) {
     mailOptions.subject = 'Erro ao executar Cron-Lighthouse';
     mailOptions.text = `Erro na execução cron lighthouse\n ${error}`;
+    mailOptions.html = '';
     mailOptions.attachments = [{
       filename: '',
       path: '',
