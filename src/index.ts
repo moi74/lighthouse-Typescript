@@ -7,7 +7,7 @@ import fs from 'fs';
 
 // Variáveis de definição----------------------------------------
 const sitemapPath = './src/sitemap.xml';
-let pages = 1;
+let pages = 10;
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -30,6 +30,7 @@ const mailOptions = {
     cid: ''
   }]  
 } 
+
 
 function readSiteMap(sitemapPath: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -64,20 +65,38 @@ async function sendMail() {
 }
 
 async function captureScreenshot(page: Puppeteer.Page, url: string): Promise<string> {
-  await page.setViewport({ width: 1024, height: 768 });
-
+  await page.setViewport({ width: 1920, height: 1080 });
   const screenshotPath = `./screenshot_${Date.now()}.png`;
   await page.goto(url);
-  await page.screenshot({ path: screenshotPath });
+  await page.screenshot({ path: screenshotPath, 
+    type: 'jpeg',
+    quality: 70,
+    clip: {
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080
+    },
+  omitBackground: true,
+});
   return screenshotPath;
 }
 
 async function captureMobileScreenshot(page: Puppeteer.Page, url: string): Promise<string> {
-  await page.setViewport({ width: 375, height: 667 }); // Exemplo de resolução para iPhone 6/7/8
-
+  await page.setViewport({ width: 360, height: 640 });
   const screenshotPath = `./screenshot_mobile_${Date.now()}.png`;
   await page.goto(url);
-  await page.screenshot({ path: screenshotPath });
+  await page.screenshot({ path: screenshotPath, 
+    type: 'jpeg',
+    quality: 100,
+    clip: {
+      x: 0,
+      y: 0,
+      width: 360,
+      height: 640
+    },
+  omitBackground: true,
+});
 
   return screenshotPath;
 }
@@ -212,7 +231,7 @@ async function captureMobileScreenshot(page: Puppeteer.Page, url: string): Promi
     screenshotPaths.forEach((screenshotPath, index) => {
       mailOptions.html += `
           <tr>
-            <td style='width:60%'><img style='height:auto; max-height:100%;' src="cid:screenshot_${index}"></td>
+            <td style='text-align:center; width:60%; margin:5%;'><img style='width:auto; max-width:80%; height:auto; max-height:350px;' src="cid:screenshot_${index}"></td>
             <td style='width:40%'>${lighthouseInfos[index]}</td>
           </tr>
       `
