@@ -1,4 +1,5 @@
 import * as xml2js from 'xml2js';
+import * as nodemailer from 'nodemailer';
 import _ from 'lodash';
 import puppeteer from 'puppeteer';
 import launch from 'lighthouse';
@@ -7,6 +8,26 @@ import fs from 'fs';
 // Variáveis de definição----------------------------------------
 const sitemapPath = './src/sitemap.xml';
 const pages = 1;
+const transporter = nodemailer.createTransport({
+  host: 'provedor-email',
+  port: 465,
+  secure: true,
+  auth: {
+    user: 'email',
+    pass: 'senha'
+  }
+});
+
+const mailOptions = {
+  from: 'email envio',
+  to: 'email recebimento',
+  subject: '',
+  text: '',
+  attachments: [{
+    filename: '',
+    path: ''
+  }]  
+} 
 
 function readSiteMap(sitemapPath: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -29,6 +50,15 @@ function readSiteMap(sitemapPath: string): Promise<string[]> {
 
 function chooseRandomPages(urls: string[]): string[] {
   return _.sampleSize(urls, pages);
+}
+
+async function sendMail() {
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`Email enviado: ${info.messageId}`);
+  } catch(error) {
+    throw new Error(`Erro ao enviar email:\n ${error}`);
+  }
 }
 
 (async () => {
@@ -56,7 +86,6 @@ function chooseRandomPages(urls: string[]): string[] {
     let speedIndex = 0;
 
     for (const url of randomPages) {
-        console.log(`\n Mais uma página`);
       try {
         let report = await launch(url, lighthouseConfig);
 
@@ -105,11 +134,23 @@ function chooseRandomPages(urls: string[]): string[] {
     metricStrings += `CLS geral: ${Math.round(cls/pages)}\n`;
     metricStrings += `Speed-index geral: ${Math.round(speedIndex)/pages}\n`;
 
+    fs.writeFileSync('./performDetails.txt', metricStrings, 'utf-8');
+    
+    mailOptions.subject = 'Relatório Cron-Lighthouse';
+    mailOptions.text = 'Relatório com médias lighthouse do site teky';
+    mailOptions.attachments = [{
+      filename: 'Relatório lighthouse.txt',
+      path: './performDetails.txt'
+    }];
+    await sendMail();
 
-    fs.writeFileSync('performDetails.txt', metricStrings, 'utf-8');
     console.log('Processo Finalizado')
     await browser.close();
   } catch(error) {
+    mailOptions.subject = 'Erro ao executar Cron-Lighthouse';
+    mailOptions.text = `Erro na execução cron lighthouse\n ${error}`;
+    await sendMail();
+    
     throw new Error(error);
   }
 })();
