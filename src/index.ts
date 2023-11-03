@@ -4,6 +4,10 @@ import puppeteer from 'puppeteer';
 import launch from 'lighthouse';
 import fs from 'fs';
 
+// Variáveis de definição----------------------------------------
+const sitemapPath = './src/sitemap.xml';
+const pages = 1;
+
 function readSiteMap(sitemapPath: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     fs.readFile(sitemapPath, 'utf-8',(err, data) => {
@@ -14,7 +18,6 @@ function readSiteMap(sitemapPath: string): Promise<string[]> {
           if(parseErr) {
             reject(parseErr);
           } else {
-            console.log('sitemap lido');
             const urls = result.urlset.url.map((urlItem: any) => urlItem.loc[0]);
             resolve(urls);
           }
@@ -25,20 +28,14 @@ function readSiteMap(sitemapPath: string): Promise<string[]> {
 }
 
 function chooseRandomPages(urls: string[]): string[] {
-  console.log('Escolhendo páginas aleatórias');
-  return _.sampleSize(urls, 1);
+  return _.sampleSize(urls, pages);
 }
-
-const sitemapPath = './src/sitemap.xml';
 
 (async () => {
   let metricStrings = '';
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
 
-  const url = 'https://www.mercadolivre.com.br/monitor-dell-27-s2721hn/p/MLB23417008';
-
-  // Execute o Lighthouse usando o Chrome já iniciado pelo Puppeteer
   const lighthouseConfig: any = {
     output: 'json',
     port: (new URL(browser.wsEndpoint())).port,
@@ -48,30 +45,65 @@ const sitemapPath = './src/sitemap.xml';
     const urls = await readSiteMap(sitemapPath);
     const randomPages = chooseRandomPages(urls);
 
-    console.log('Páginas aleatórias:');
-    randomPages.forEach((page, index) => {
-      console.log(`${index + 1}: ${page}`);
-    });
+    let performance = 0;
+    let accessibility = 0;
+    let bestPractices =0;
+    let seo = 0;
+    let fcp = 0;
+    let lcp = 0;
+    let tbt = 0;
+    let cls = 0;
+    let speedIndex = 0;
 
-    console.log('Iniciando leitura de páginas lighthouse')
-    const report = await launch(url, lighthouseConfig);
-    const performanceMetrics = report.lhr.categories.performance.auditRefs;
-    console.log('Concluída leitura lighthouse');
+    for (const url of randomPages) {
+        console.log(`\n Mais uma página`);
+      try {
+        let report = await launch(url, lighthouseConfig);
 
+        metricStrings += `Página analisada: ${randomPages}\n`;
+  
+        metricStrings += `\nPerformance: ${Math.round(report.lhr.categories.performance.score * 100)}\n`;
+        performance += report.lhr.categories.performance.score*100;
 
-    console.log('Preenchendo variável de arquivo')
-    metricStrings += `Página analisada: ${randomPages}\n`;
+        metricStrings += `Acessibilidade: ${Math.round(report.lhr.categories.accessibility.score * 100)}\n`;
+        accessibility += report.lhr.categories.accessibility.score * 100;
 
-    metricStrings += `\nPerformance: ${report.lhr.categories.performance.score * 100}\n`;
-    metricStrings += `Acessibilidade: ${report.lhr.categories.accessibility.score * 100}\n`;
-    metricStrings += `Boas práticas: ${report.lhr.categories['best-practices'].score * 100}\n`;
-    metricStrings += `SEO: ${report.lhr.categories.seo.score * 100}\n`;
+        metricStrings += `Boas práticas: ${Math.round(report.lhr.categories['best-practices'].score * 100)}\n`;
+        bestPractices+= report.lhr.categories['best-practices'].score * 100;
 
-    metricStrings += `\nFCP: ${report.lhr.audits['first-contentful-paint'].numericValue}\n`;
-    metricStrings += `LCP: ${report.lhr.audits['largest-contentful-paint'].numericValue}\n`;
-    metricStrings += `TBT: ${report.lhr.audits['total-blocking-time'].numericValue}\n`;
-    metricStrings += `CLS: ${report.lhr.audits['cumulative-layout-shift'].numericValue}\n`;
-    metricStrings += `Speed Index: ${report.lhr.audits['speed-index'].numericValue}\n`;
+        metricStrings += `SEO: ${Math.round(report.lhr.categories.seo.score * 100)}\n`;
+        seo += report.lhr.categories.seo.score * 100;
+    
+        metricStrings += `\nFCP: ${Math.round(report.lhr.audits['first-contentful-paint'].numericValue)}ms\n`;
+        fcp += report.lhr.audits['first-contentful-paint'].numericValue;
+
+        metricStrings += `LCP: ${Math.round(report.lhr.audits['largest-contentful-paint'].numericValue)}ms\n`;
+        lcp += report.lhr.audits['largest-contentful-paint'].numericValue;
+
+        metricStrings += `TBT: ${Math.round(report.lhr.audits['total-blocking-time'].numericValue)}ms\n`;
+        tbt += report.lhr.audits['total-blocking-time'].numericValue;
+
+        metricStrings += `CLS: ${Math.round(report.lhr.audits['cumulative-layout-shift'].numericValue)}\n`;
+        cls += report.lhr.audits['cumulative-layout-shift'].numericValue;
+
+        metricStrings += `Speed Index: ${Math.round(report.lhr.audits['speed-index'].numericValue)}\n`;
+        speedIndex += report.lhr.audits['speed-index'].numericValue;
+        metricStrings += `\n---------------------------------------------------------------\n`;
+  
+      } catch(errorLighthouse) {
+        throw new Error(errorLighthouse);
+      }
+    }
+
+    metricStrings += `Performance geral: ${Math.round(performance)/pages}\n`
+    metricStrings += `Acessibilidade geral: ${Math.round(accessibility)/pages}\n`;
+    metricStrings += `Boas práticas geral: ${Math.round(bestPractices)/pages}\n`;
+    metricStrings += `SEO geral: ${Math.round(seo)/pages}\n`;
+    metricStrings += `\nFCP geral: ${Math.round(fcp/pages)}ms\n`;
+    metricStrings += `LCP geral: ${Math.round(lcp/pages)}ms\n`;
+    metricStrings += `TBT geral: ${Math.round(tbt/pages)}ms\n`;
+    metricStrings += `CLS geral: ${Math.round(cls/pages)}\n`;
+    metricStrings += `Speed-index geral: ${Math.round(speedIndex)/pages}\n`;
 
 
     fs.writeFileSync('performDetails.txt', metricStrings, 'utf-8');
