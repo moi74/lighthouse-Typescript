@@ -8,19 +8,43 @@ import fs from 'fs';
 // Variáveis de definição----------------------------------------
 const sitemapPath = './src/sitemap.xml';
 let pages = 10;
+// const transporter = nodemailer.createTransport({
+//   host: 'smtp.gmail.com',
+//   port: 465,
+//   secure: true,
+//   auth: {
+//     user: 'email',
+//     pass: 'senha especial'
+//   }
+// });
+
+// const mailOptions = {
+//   from: 'email envio',
+//   to: 'email recebimento',
+//   subject: '',
+//   text: '',
+//   html: '',
+//   attachments: [{
+//     filename: '',
+//     path: '',
+//     cid: ''
+//   }]  
+// } 
+
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
   auth: {
-    user: 'email',
-    pass: 'senha especial'
+    user: 'contato.moisessantanna@gmail.com',
+    pass: 'mhyn jnll manw ufls'
   }
 });
 
 const mailOptions = {
-  from: 'email envio',
-  to: 'email recebimento',
+  from: 'contato.moisessantanna@gmail.com',
+  to: 'moisespsantanna@gmail.com',
   subject: '',
   text: '',
   html: '',
@@ -30,7 +54,6 @@ const mailOptions = {
     cid: ''
   }]  
 } 
-
 
 function readSiteMap(sitemapPath: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -56,11 +79,21 @@ function chooseRandomPages(urls: string[]): string[] {
 }
 
 async function sendMail() {
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Email enviado: ${info.messageId}`);
-  } catch(error) {
-    throw new Error(`Erro ao enviar email:\n ${error}`);
+  const maxRetries = 3;
+  let retries = 0;
+
+  while (retries < maxRetries) {
+    try {
+      const info = await transporter.sendMail(mailOptions);
+
+      if(info) {
+        console.log(`Email enviado: ${info.messageId}`);
+        return info;
+      } 
+    } catch(error) {
+      throw new Error(`Erro ao enviar email:\n ${error}`);
+    }
+    retries ++;
   }
 }
 
@@ -97,8 +130,25 @@ async function captureMobileScreenshot(page: Puppeteer.Page, url: string): Promi
     },
   omitBackground: true,
 });
-
   return screenshotPath;
+}
+
+async function runLighthouseWithRetry(url, lighthouseConfig) {
+  const maxRetries = 3;
+  let retries = 0;
+
+  while (retries < maxRetries){
+    try {
+      const report = await launch(url, lighthouseConfig);
+
+      if(report.lhr.categories.performance.score){
+        return report;
+      } 
+    } catch(errorLighthouse){
+      console.log(`Erro ao executar lighthouse: ${errorLighthouse.messageId}`)
+    }
+    retries ++;
+  }
 }
 
 (async () => {
@@ -139,66 +189,69 @@ async function captureMobileScreenshot(page: Puppeteer.Page, url: string): Promi
 
     for (const url of randomPages) {
       try {
-        let report = await launch(url, lighthouseConfig);
+        let report = await runLighthouseWithRetry(url, lighthouseConfig);
+        let reportMobile = await runLighthouseWithRetry(url, lighthouseConfigMobile);
 
-        const screenshotPath = await captureScreenshot(page, url);
-        screenshotPaths.push(screenshotPath);
+        if (report && reportMobile){
+          const screenshotPath = await captureScreenshot(page, url);
+          screenshotPaths.push(screenshotPath);
 
-        lighthouseInfos.push(`
-          <p>Página analisada: ${url}</p>
+          lighthouseInfos.push(`
+            <p>Página analisada: ${url}</p>
 
-          <p>Performance: ${Math.round(report.lhr.categories.performance.score * 100)}%</p>
-          <p>Acessibilidade: ${Math.round(report.lhr.categories.accessibility.score * 100)}%</p>
-          <p>Boas práticas: ${Math.round(report.lhr.categories['best-practices'].score * 100)}%</p>
-          <p>SEO: ${Math.round(report.lhr.categories.seo.score * 100)}%</p>
+            <p>Performance: ${Math.round(report.lhr.categories.performance.score * 100)}%</p>
+            <p>Acessibilidade: ${Math.round(report.lhr.categories.accessibility.score * 100)}%</p>
+            <p>Boas práticas: ${Math.round(report.lhr.categories['best-practices'].score * 100)}%</p>
+            <p>SEO: ${Math.round(report.lhr.categories.seo.score * 100)}%</p>
 
-          <p>FCP: ${Math.round(report.lhr.audits['first-contentful-paint'].numericValue)}ms</p>
-          <p>LCP: ${Math.round(report.lhr.audits['largest-contentful-paint'].numericValue)}ms</p>
-          <p>TBT: ${Math.round(report.lhr.audits['total-blocking-time'].numericValue)}ms</p>
-          <p>CLS: ${Math.round(report.lhr.audits['cumulative-layout-shift'].numericValue)}</p>
-          <p>Speed Index: ${Math.round(report.lhr.audits['speed-index'].numericValue)}</p>
-        `);
+            <p>FCP: ${Math.round(report.lhr.audits['first-contentful-paint'].numericValue)}ms</p>
+            <p>LCP: ${Math.round(report.lhr.audits['largest-contentful-paint'].numericValue)}ms</p>
+            <p>TBT: ${Math.round(report.lhr.audits['total-blocking-time'].numericValue)}ms</p>
+            <p>CLS: ${Math.round(report.lhr.audits['cumulative-layout-shift'].numericValue)}</p>
+            <p>Speed Index: ${Math.round(report.lhr.audits['speed-index'].numericValue)}</p>
+          `);
 
-        performance += report.lhr.categories.performance.score*100;
-        accessibility += report.lhr.categories.accessibility.score * 100;
-        bestPractices+= report.lhr.categories['best-practices'].score * 100;
-        seo += report.lhr.categories.seo.score * 100;
-        fcp += report.lhr.audits['first-contentful-paint'].numericValue;
-        lcp += report.lhr.audits['largest-contentful-paint'].numericValue;
-        tbt += report.lhr.audits['total-blocking-time'].numericValue;
-        cls += report.lhr.audits['cumulative-layout-shift'].numericValue;
-        speedIndex += report.lhr.audits['speed-index'].numericValue;
+          performance += report.lhr.categories.performance.score*100;
+          accessibility += report.lhr.categories.accessibility.score * 100;
+          bestPractices+= report.lhr.categories['best-practices'].score * 100;
+          seo += report.lhr.categories.seo.score * 100;
+          fcp += report.lhr.audits['first-contentful-paint'].numericValue;
+          lcp += report.lhr.audits['largest-contentful-paint'].numericValue;
+          tbt += report.lhr.audits['total-blocking-time'].numericValue;
+          cls += report.lhr.audits['cumulative-layout-shift'].numericValue;
+          speedIndex += report.lhr.audits['speed-index'].numericValue;
 
 
-        let reportMobile = await launch(url, lighthouseConfigMobile);
+          const screenshotPathMobile = await captureMobileScreenshot(page, url);
+          screenshotPaths.push(screenshotPathMobile);
 
-        const screenshotPathMobile = await captureMobileScreenshot(page, url);
-        screenshotPaths.push(screenshotPathMobile);
+          lighthouseInfos.push(`
+            <p>Página analisada: ${url}</p>
 
-        lighthouseInfos.push(`
-          <p>Página analisada: ${url}</p>
+            <p>Performance: ${Math.round(reportMobile.lhr.categories.performance.score * 100)}%</p>
+            <p>Acessibilidade: ${Math.round(reportMobile.lhr.categories.accessibility.score * 100)}%</p>
+            <p>Boas práticas: ${Math.round(reportMobile.lhr.categories['best-practices'].score * 100)}%</p>
+            <p>SEO: ${Math.round(reportMobile.lhr.categories.seo.score * 100)}%</p>
 
-          <p>Performance: ${Math.round(reportMobile.lhr.categories.performance.score * 100)}%</p>
-          <p>Acessibilidade: ${Math.round(reportMobile.lhr.categories.accessibility.score * 100)}%</p>
-          <p>Boas práticas: ${Math.round(reportMobile.lhr.categories['best-practices'].score * 100)}%</p>
-          <p>SEO: ${Math.round(reportMobile.lhr.categories.seo.score * 100)}%</p>
+            <p>FCP: ${Math.round(reportMobile.lhr.audits['first-contentful-paint'].numericValue)}ms</p>
+            <p>LCP: ${Math.round(reportMobile.lhr.audits['largest-contentful-paint'].numericValue)}ms</p>
+            <p>TBT: ${Math.round(reportMobile.lhr.audits['total-blocking-time'].numericValue)}ms</p>
+            <p>CLS: ${Math.round(reportMobile.lhr.audits['cumulative-layout-shift'].numericValue)}</p>
+            <p>Speed Index: ${Math.round(reportMobile.lhr.audits['speed-index'].numericValue)}</p>
+          `);
 
-          <p>FCP: ${Math.round(reportMobile.lhr.audits['first-contentful-paint'].numericValue)}ms</p>
-          <p>LCP: ${Math.round(reportMobile.lhr.audits['largest-contentful-paint'].numericValue)}ms</p>
-          <p>TBT: ${Math.round(reportMobile.lhr.audits['total-blocking-time'].numericValue)}ms</p>
-          <p>CLS: ${Math.round(reportMobile.lhr.audits['cumulative-layout-shift'].numericValue)}</p>
-          <p>Speed Index: ${Math.round(reportMobile.lhr.audits['speed-index'].numericValue)}</p>
-        `);
-
-        performance += reportMobile.lhr.categories.performance.score*100;
-        accessibility += reportMobile.lhr.categories.accessibility.score * 100;
-        bestPractices+= reportMobile.lhr.categories['best-practices'].score * 100;
-        seo += reportMobile.lhr.categories.seo.score * 100;
-        fcp += reportMobile.lhr.audits['first-contentful-paint'].numericValue;
-        lcp += reportMobile.lhr.audits['largest-contentful-paint'].numericValue;
-        tbt += reportMobile.lhr.audits['total-blocking-time'].numericValue;
-        cls += reportMobile.lhr.audits['cumulative-layout-shift'].numericValue;
-        speedIndex += reportMobile.lhr.audits['speed-index'].numericValue;
+          performance += reportMobile.lhr.categories.performance.score*100;
+          accessibility += reportMobile.lhr.categories.accessibility.score * 100;
+          bestPractices+= reportMobile.lhr.categories['best-practices'].score * 100;
+          seo += reportMobile.lhr.categories.seo.score * 100;
+          fcp += reportMobile.lhr.audits['first-contentful-paint'].numericValue;
+          lcp += reportMobile.lhr.audits['largest-contentful-paint'].numericValue;
+          tbt += reportMobile.lhr.audits['total-blocking-time'].numericValue;
+          cls += reportMobile.lhr.audits['cumulative-layout-shift'].numericValue;
+          speedIndex += reportMobile.lhr.audits['speed-index'].numericValue;
+        } else {
+          console.error(`Falha ao obter relatório para a URL: ${url}`)
+        }
   
       } catch(errorLighthouse) {
         throw new Error(errorLighthouse);
