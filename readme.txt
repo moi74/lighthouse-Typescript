@@ -1,2 +1,2 @@
 Executa o programa:
-yarn start 
+yarn run start 
