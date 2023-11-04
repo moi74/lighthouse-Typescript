@@ -8,43 +8,19 @@ import fs from 'fs';
 // Variáveis de definição----------------------------------------
 const sitemapPath = './src/sitemap.xml';
 let pages = 10;
-// const transporter = nodemailer.createTransport({
-//   host: 'smtp.gmail.com',
-//   port: 465,
-//   secure: true,
-//   auth: {
-//     user: 'email',
-//     pass: 'senha especial'
-//   }
-// });
-
-// const mailOptions = {
-//   from: 'email envio',
-//   to: 'email recebimento',
-//   subject: '',
-//   text: '',
-//   html: '',
-//   attachments: [{
-//     filename: '',
-//     path: '',
-//     cid: ''
-//   }]  
-// } 
-
-
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
   auth: {
-    user: 'contato.moisessantanna@gmail.com',
-    pass: 'mhyn jnll manw ufls'
+    user: 'email',
+    pass: 'senha especial'
   }
 });
 
 const mailOptions = {
-  from: 'contato.moisessantanna@gmail.com',
-  to: 'moisespsantanna@gmail.com',
+  from: 'email envio',
+  to: 'email recebimento',
   subject: '',
   text: '',
   html: '',
